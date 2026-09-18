@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Pembaca foto by novan</title>
+  <style>
+    :root {
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --bg-dark: rgba(15, 23, 42, 0.9);
+      --border-color: rgba(255, 255, 255, 0.18);
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000;
+      color: var(--text);
+    }
+
+    /* Jendela Kamera Penuh */
+    #camera-feed {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
+    }
+
+    /* Status Pemberitahuan */
+    #status-toast {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-dark);
+      padding: 10px 20px;
+      border-radius: 24px;
+      border: 1px solid var(--border-color);
+      font-size: 0.9rem;
+      font-weight: 500;
+      z-index: 10;
+      display: none;
+      backdrop-filter: blur(8px);
+      text-align: center;
+      max-width: 90%;
+    }
+
+    /* Kontrol Sisi Bawah */
+    .bottom-controls {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      z-index: 5;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+    }
+
+    /* Tombol Ambil Foto di Bagian Atas */
+    .btn-capture {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 4px solid rgba(255, 255, 255, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      transition: transform 0.1s ease;
+    }
+
+    .btn-capture:active {
+      transform: scale(0.92);
+      background: #e2e8f0;
+    }
+
+    .btn-capture-inner {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid #000;
+    }
+
+    /* Baris Tiga Tombol Mode Sejajar */
+    .mode-bar {
+      width: 100%;
+      max-width: 450px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .btn-mode {
+      flex: 1;
+      padding: 12px 6px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-dark);
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      font-weight: 500;
+      backdrop-filter: blur(10px);
+      text-align: center;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .btn-mode.active {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+
+    .btn-mode:active {
+      transform: scale(0.96);
+    }
+
+    /* Baris Tombol Pengaturan dan Salin */
+    .bottom-bar {
+      width: 100%;
+      max-width: 450px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .btn-action {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-dark);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 500;
+      backdrop-filter: blur(10px);
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .btn-action:active {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Dialog Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      padding: 20px;
+    }
+
+    .modal-card {
+      background: #1e293b;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 460px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      max-height: 88vh;
+      overflow-y: auto;
+    }
+
+    .modal-card h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group label {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+
+    .form-group input, .form-group textarea, .form-group select {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+      user-select: text;
+    }
+
+    .form-group textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+    }
+
+    .toggle-row label {
+      font-size: 0.9rem;
+    }
+
+    .toggle-row input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .modal-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 13px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text);
+      padding: 11px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <video id="camera-feed" autoplay playsinline muted></video>
+
+  <div id="status-toast">Menyiapkan kamera...</div>
+
+  <div class="bottom-controls">
+    <!-- Tombol Ambil Foto -->
+    <div class="btn-capture" id="btn-take-photo" aria-label="Ambil Foto">
+      <div class="btn-capture-inner"></div>
+    </div>
+
+    <!-- Tiga Tombol Mode Sejajar (Default: Deskripsi Foto) -->
+    <div class="mode-bar">
+      <button class="btn-mode" id="btn-mode-text">Mode Teks</button>
+      <button class="btn-mode" id="btn-mode-money">Mode Uang</button>
+      <button class="btn-mode active" id="btn-mode-desc">Deskripsi Foto</button>
+    </div>
+
+    <!-- Tombol Pengaturan dan Salin -->
+    <div class="bottom-bar">
+      <button class="btn-action" id="btn-open-settings">Pengaturan</button>
+      <button class="btn-action" id="btn-copy-text">Salin Tulisan</button>
+    </div>
+  </div>
+
+  <!-- Dialog Izin Akses Kamera -->
+  <div class="modal-overlay" id="permission-modal">
+    <div class="modal-card" style="text-align: center;">
+      <h2>Izin Akses Kamera</h2>
+      <p style="font-size: 0.9rem; color: var(--text-dim); line-height: 1.5;">
+        Aplikasi memerlukan izin membuka kamera untuk memindai teks, nominal uang, serta mendeskripsikan foto secara langsung.
+      </p>
+      <div class="modal-actions">
+        <button class="btn-primary" id="btn-allow-camera">Buka dan Aktifkan Kamera</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dialog Pengaturan -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-card">
+      <h2>Pengaturan Kamera dan OCR</h2>
+
+      <div class="form-group">
+        <label for="cfg-resolution">Resolusi Gambar atau Kamera</label>
+        <select id="cfg-resolution">
+          <option value="4k">4K UHD (3840 x 2160)</option>
+          <option value="2k">2K QHD (2560 x 1440)</option>
+          <option value="1080p">Full HD 1080p (1920 x 1080)</option>
+          <option value="720p">HD 720p (1280 x 720) Bawaan</option>
+          <option value="480p">SD 480p (854 x 480)</option>
+          <option value="360p">Rendah 360p (640 x 360)</option>
+          <option value="240p">Paling Rendah 240p (426 x 240)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="cfg-speech-rate">Kecepatan Suara Pembacaan</label>
+        <select id="cfg-speech-rate">
+          <option value="0.5">0.5x (Sangat Lambat)</option>
+          <option value="0.75">0.75x (Lambat)</option>
+          <option value="1.0">1.0x (Normal) Bawaan</option>
+          <option value="1.25">1.25x (Sedang Cepat)</option>
+          <option value="1.5">1.5x (Cepat)</option>
+          <option value="1.75">1.75x (Sangat Cepat)</option>
+          <option value="2.0">2.0x (Maksimal Cepat)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="cfg-api-key">Kunci API Groq (Opsional)</label>
+        <input 
+          type="text" 
+          id="cfg-api-key" 
+          autocomplete="off" 
+          autocorrect="off" 
+          autocapitalize="off" 
+          spellcheck="false" 
+          placeholder="Kunci bawaan aktif (Rahasia)" 
+        />
+      </div>
+
+      <button class="btn-secondary" id="btn-reset-key">Kembalikan ke Kunci Bawaan</button>
+
+      <!-- Instruksi Mode Teks -->
+      <div class="form-group">
+        <label for="cfg-instruction-text">Instruksi Mode Teks</label>
+        <textarea id="cfg-instruction-text"></textarea>
+      </div>
+
+      <!-- Instruksi Mode Uang -->
+      <div class="form-group">
+        <label for="cfg-instruction-money">Instruksi Mode Uang</label>
+        <textarea id="cfg-instruction-money"></textarea>
+      </div>
+
+      <!-- Instruksi Mode Deskripsi Foto -->
+      <div class="form-group">
+        <label for="cfg-instruction-desc">Instruksi Deskripsi Foto</label>
+        <textarea id="cfg-instruction-desc" style="min-height: 100px;"></textarea>
+      </div>
+
+      <div class="toggle-row">
+        <label for="cfg-vibrate">Getaran Saat Memotret</label>
+        <input type="checkbox" id="cfg-vibrate" />
+      </div>
+
+      <div class="toggle-row">
+        <label for="cfg-torch">Lampu Kamera Flash</label>
+        <input type="checkbox" id="cfg-torch" />
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-primary" id="btn-save-settings">Simpan Perubahan</button>
+        <button class="btn-secondary" id="btn-close-settings">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SECRET_DEFAULT_KEY = "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";
+    
+    // Instruksi Bawaan Masing-Masing Mode
+    const DEFAULT_TEXT_INSTRUCTION = "Salin dan tulis ulang seluruh teks yang terbaca pada gambar ini secara presisi dari atas ke bawah sesuai urutan aslinya. Jangan tambahkan deskripsi visual, jangan berikan kesimpulan, dan jangan gunakan kata pengantar. Tampilkan HANYA teks mentah yang terlihat di layar.";
+    const DEFAULT_MONEY_INSTRUCTION = "Identifikasi nominal uang tunai kertas atau koin rupiah pada gambar ini. Berikan HANYA nominal uangnya saja dalam bahasa Indonesia secara singkat dan jelas, contoh: Seratus ribu rupiah, Lima puluh ribu rupiah, Dua puluh ribu rupiah, Sepuluh ribu rupiah, Lima ribu rupiah, Dua ribu rupiah, Seribu rupiah, atau Uang tidak terdeteksi. DILARANG memberikan pengantar, akhiran, ataupun penjelasan visual tambahan.";
+    const DEFAULT_PHOTO_DESC_INSTRUCTION = `Deskripsikan gambar secara jelas, natural, dan profesional dalam bahasa Indonesia. Susun narasi visual yang mengalir dari elemen paling dominan ke objek, karakter, lingkungan, dan detail sekitarnya. Jelaskan warna, bentuk, ukuran, tekstur, posisi, pencahayaan, suasana, komposisi, serta hubungan antarelemen tanpa berlebihan.
+Jika terdapat manusia atau karakter, gambarkan penampilan, pakaian, ekspresi, arah pandangan, gestur, dan kesan emosional yang tampak. Jelaskan pula kedalaman ruang, objek di depan, tengah, dan belakang, serta cara komposisi mengarahkan perhatian.
+
+Jika gambar berisi surat, dokumen, formulir, poster, papan, atau teks lainnya, bacakan dan transkripsikan seluruh teks yang terlihat secara akurat. Pertahankan urutan pembacaan sesuai tata letak gambar.
+
+Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bullet point, subjudul, atau kategori. Dasarkan setiap pernyataan pada hal yang benar-benar terlihat; nyatakan ketidakpastian jika diperlukan. Pastikan isi surat atau dokumen disampaikan secara lengkap sebelum memberikan deskripsi visual dan kesan suasana keseluruhan.`;
+
+    const MODEL_NAME = "qwen/qwen3.8-27b";
+
+    const RESOLUTION_MAP = {
+      "4k":    { width: 3840, height: 2160, label: "4K UHD" },
+      "2k":    { width: 2560, height: 1440, label: "2K QHD" },
+      "1080p": { width: 1920, height: 1080, label: "1080p Full HD" },
+      "720p":  { width: 1280, height: 720,  label: "720p HD" },
+      "480p":  { width: 854,  height: 480,  label: "480p SD" },
+      "360p":  { width: 640,  height: 360,  label: "360p" },
+      "240p":  { width: 426,  height: 240,  label: "240p" }
+    };
+
+    let userCustomApiKey = localStorage.getItem("groq_user_custom_key") || "";
+    let textInstruction = localStorage.getItem("groq_instruction_text") || localStorage.getItem("groq_ocr_instruction") || DEFAULT_TEXT_INSTRUCTION;
+    let moneyInstruction = localStorage.getItem("groq_instruction_money") || DEFAULT_MONEY_INSTRUCTION;
+    let photoDescInstruction = localStorage.getItem("groq_instruction_desc") || DEFAULT_PHOTO_DESC_INSTRUCTION;
+
+    let vibrateEnabled = localStorage.getItem("groq_ocr_vibrate") !== "false";
+    let selectedResolution = localStorage.getItem("groq_ocr_res") || "720p";
+    let speechRate = parseFloat(localStorage.getItem("groq_ocr_speech_rate")) || 1.0;
+
+    // Nilai bawaan diatur ke "desc" (Deskripsi Foto)
+    let currentMode = localStorage.getItem("groq_app_mode") || "desc"; 
+    let torchEnabled = false;
+
+    let videoStream = null;
+    let videoTrack = null;
+    let lastOcrResult = "";
+    let activeSystemVoice = null;
+
+    const video = document.getElementById("camera-feed");
+    const statusToast = document.getElementById("status-toast");
+    const permissionModal = document.getElementById("permission-modal");
+    const settingsModal = document.getElementById("settings-modal");
+
+    const btnModeText = document.getElementById("btn-mode-text");
+    const btnModeMoney = document.getElementById("btn-mode-money");
+    const btnModeDesc = document.getElementById("btn-mode-desc");
+
+    const cfgResolution = document.getElementById("cfg-resolution");
+    const cfgSpeechRate = document.getElementById("cfg-speech-rate");
+    const cfgApiKey = document.getElementById("cfg-api-key");
+    const cfgInstructionText = document.getElementById("cfg-instruction-text");
+    const cfgInstructionMoney = document.getElementById("cfg-instruction-money");
+    const cfgInstructionDesc = document.getElementById("cfg-instruction-desc");
+    const cfgVibrate = document.getElementById("cfg-vibrate");
+    const cfgTorch = document.getElementById("cfg-torch");
+
+    function getActiveApiKey() {
+      return userCustomApiKey.trim() !== "" ? userCustomApiKey.trim() : SECRET_DEFAULT_KEY;
+    }
+
+    function updateModeButtonsUI() {
+      btnModeText.classList.toggle("active", currentMode === "text");
+      btnModeMoney.classList.toggle("active", currentMode === "money");
+      btnModeDesc.classList.toggle("active", currentMode === "desc");
+    }
+
+    function setAppMode(modeName, announceText) {
+      currentMode = modeName;
+      localStorage.setItem("groq_app_mode", currentMode);
+      updateModeButtonsUI();
+      triggerHaptic(50);
+      unlockSpeechContext();
+      showToast(announceText);
+      speak(announceText);
+    }
+
+    function loadMainVoiceEngine() {
+      if (!window.speechSynthesis) return;
+      const voices = window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) return;
+
+      activeSystemVoice = voices.find(v => v.default) ||
+                          voices.find(v => v.lang && v.lang.toLowerCase().replace("_", "-").startsWith("id")) ||
+                          voices[0];
+    }
+
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadMainVoiceEngine;
+      loadMainVoiceEngine();
+    }
+
+    function sanitizeSpeechText(text) {
+      if (!text) return "";
+      return text
+        .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, "")
+        .replace(/[#*_`~>|\[\]\(\)\{\}\\\/]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function speak(text) {
+      if (!window.speechSynthesis) return;
+
+      const cleanText = sanitizeSpeechText(text);
+      if (!cleanText) return;
+
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      if (activeSystemVoice) {
+        utterance.voice = activeSystemVoice;
+      }
+      utterance.lang = "id-ID";
+      utterance.rate = speechRate;
+      utterance.pitch = 1.0;
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function unlockSpeechContext() {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const silentUtterance = new SpeechSynthesisUtterance("");
+      silentUtterance.volume = 0;
+      window.speechSynthesis.speak(silentUtterance);
+    }
+
+    function showToast(msg, duration = 3000) {
+      statusToast.textContent = msg;
+      statusToast.style.display = "block";
+      setTimeout(() => {
+        statusToast.style.display = "none";
+      }, duration);
+    }
+
+    function triggerHaptic(duration = 60) {
+      if (vibrateEnabled && navigator.vibrate) {
+        navigator.vibrate(duration);
+      }
+    }
+
+    async function toggleTorch(turnOn) {
+      torchEnabled = turnOn;
+      if (!videoTrack) return;
+      try {
+        const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+        if (capabilities.torch) {
+          await videoTrack.applyConstraints({
+            advanced: [{ torch: turnOn }]
+          });
+        }
+      } catch (err) {
+        console.warn("Lampu kamera tidak didukung.");
+      }
+    }
+
+    async function initCamera(isUserClick = false) {
+      if (videoStream) {
+        videoStream.getTracks().forEach(t => t.stop());
+      }
+
+      const resPreset = RESOLUTION_MAP[selectedResolution] || RESOLUTION_MAP["720p"];
+
+      try {
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: resPreset.width },
+            height: { ideal: resPreset.height }
+          }
+        };
+
+        videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = videoStream;
+        videoTrack = videoStream.getVideoTracks()[0];
+
+        localStorage.setItem("camera_permission_granted", "true");
+        permissionModal.style.display = "none";
+
+        showToast("Kamera sudah aktif");
+        speak("Kamera sudah aktif");
+
+        await toggleTorch(torchEnabled);
+      } catch (err) {
+        showToast("Kamera belum aktif atau izin ditolak");
+        if (isUserClick) {
+          speak("Kamera belum aktif atau izin ditolak");
+        } else {
+          permissionModal.style.display = "flex";
+        }
+      }
+    }
+
+    async function captureAndProcess() {
+      unlockSpeechContext();
+      triggerHaptic(80);
+
+      if (!videoStream || !video.videoWidth) {
+        showToast("Kamera belum siap");
+        speak("Kamera belum siap");
+        return;
+      }
+
+      let processMsg = "Mendeskripsikan foto...";
+      if (currentMode === "text") {
+        processMsg = "Sedang memproses teks...";
+      } else if (currentMode === "money") {
+        processMsg = "Mendeteksi uang...";
+      }
+      showToast(processMsg);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const base64Jpg = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+      sendToGroq(base64Jpg);
+    }
+
+    async function sendToGroq(base64Image) {
+      const activeKey = getActiveApiKey();
+
+      let activeInstruction = photoDescInstruction;
+      let userPrompt = "Deskripsikan isi gambar ini secara naratif dan detail sesuai instruksi.";
+
+      if (currentMode === "text") {
+        activeInstruction = textInstruction;
+        userPrompt = "Salin seluruh teks yang tampak pada gambar ini sesuai posisi aslinya.";
+      } else if (currentMode === "money") {
+        activeInstruction = moneyInstruction;
+        userPrompt = "Sebutkan hanya nominal uang rupiah pada gambar ini.";
+      }
+
+      const payload = {
+        model: MODEL_NAME,
+        temperature: 0.1,
+        max_tokens: 2000,
+        messages: [
+          { role: "system", content: activeInstruction },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userPrompt },
+              { type: "image_url", image_url: { url: "data:image/jpeg;base64," + base64Image } }
+            ]
+          }
+        ]
+      };
+
+      const maxRetries = 3;
+      let attempt = 0;
+      let success = false;
+      let resultText = "";
+      let errorMsg = "Koneksi terputus";
+
+      while (attempt < maxRetries && !success) {
+        attempt++;
+        try {
+          const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + activeKey
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.choices && data.choices.length > 0) {
+              resultText = data.choices[0].message.content;
+              success = true;
+            }
+          } else {
+            const errObj = await res.json().catch(() => ({}));
+            errorMsg = errObj.error?.message || ("Kode respons " + res.status);
+          }
+        } catch (e) {
+          errorMsg = e.message || "Gagal menghubungi server";
+        }
+
+        if (!success && attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 1500));
+        }
+      }
+
+      if (success && resultText.trim() !== "") {
+        lastOcrResult = resultText;
+        let successMsg = "Deskripsi foto siap";
+        if (currentMode === "text") successMsg = "Teks berhasil dipindai";
+        else if (currentMode === "money") successMsg = "Uang terdeteksi";
+
+        showToast(successMsg);
+        speak(resultText);
+      } else {
+        const failText = "Gagal memproses gambar. " + errorMsg;
+        showToast(failText);
+        speak(failText);
+      }
+    }
+
+    function openSettings() {
+      triggerHaptic(40);
+      cfgResolution.value = selectedResolution;
+      cfgSpeechRate.value = speechRate.toString();
+      cfgApiKey.value = userCustomApiKey;
+
+      // Isi input instruksi masing-masing mode
+      cfgInstructionText.value = textInstruction;
+      cfgInstructionMoney.value = moneyInstruction;
+      cfgInstructionDesc.value = photoDescInstruction;
+
+      cfgVibrate.checked = vibrateEnabled;
+      cfgTorch.checked = torchEnabled;
+      settingsModal.style.display = "flex";
+    }
+
+    // Klik Pemilihan Mode Langsung
+    btnModeText.addEventListener("click", () => setAppMode("text", "Mode Teks diaktifkan"));
+    btnModeMoney.addEventListener("click", () => setAppMode("money", "Mode Uang diaktifkan"));
+    btnModeDesc.addEventListener("click", () => setAppMode("desc", "Mode Deskripsi Foto diaktifkan"));
+
+    document.getElementById("btn-take-photo").addEventListener("click", captureAndProcess);
+    document.getElementById("btn-open-settings").addEventListener("click", openSettings);
+
+    document.getElementById("btn-copy-text").addEventListener("click", async () => {
+      triggerHaptic(40);
+      if (!lastOcrResult) {
+        showToast("Belum ada teks untuk disalin");
+        speak("Belum ada teks yang dapat disalin");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(lastOcrResult);
+        showToast("Teks berhasil disalin");
+        speak("Teks berhasil disalin");
+      } catch (err) {
+        showToast("Gagal menyalin teks");
+      }
+    });
+
+    document.getElementById("btn-allow-camera").addEventListener("click", () => {
+      triggerHaptic(40);
+      unlockSpeechContext();
+      initCamera(true);
+    });
+
+    document.getElementById("btn-reset-key").addEventListener("click", () => {
+      triggerHaptic(40);
+      cfgApiKey.value = "";
+      userCustomApiKey = "";
+      localStorage.removeItem("groq_user_custom_key");
+      showToast("Kunci dikembalikan ke bawaan");
+      speak("Kunci dikembalikan ke bawaan");
+    });
+
+    document.getElementById("btn-save-settings").addEventListener("click", async () => {
+      triggerHaptic(40);
+      const oldRes = selectedResolution;
+      selectedResolution = cfgResolution.value;
+      speechRate = parseFloat(cfgSpeechRate.value) || 1.0;
+
+      const inputVal = cfgApiKey.value.trim();
+      if (inputVal === "") {
+        userCustomApiKey = "";
+        localStorage.removeItem("groq_user_custom_key");
+      } else {
+        userCustomApiKey = inputVal;
+        localStorage.setItem("groq_user_custom_key", userCustomApiKey);
+      }
+
+      // Ambil dan simpan ketiga instruksi
+      textInstruction = cfgInstructionText.value.trim() || DEFAULT_TEXT_INSTRUCTION;
+      moneyInstruction = cfgInstructionMoney.value.trim() || DEFAULT_MONEY_INSTRUCTION;
+      photoDescInstruction = cfgInstructionDesc.value.trim() || DEFAULT_PHOTO_DESC_INSTRUCTION;
+
+      vibrateEnabled = cfgVibrate.checked;
+
+      localStorage.setItem("groq_ocr_res", selectedResolution);
+      localStorage.setItem("groq_ocr_speech_rate", speechRate.toString());
+      localStorage.setItem("groq_instruction_text", textInstruction);
+      localStorage.setItem("groq_instruction_money", moneyInstruction);
+      localStorage.setItem("groq_instruction_desc", photoDescInstruction);
+      localStorage.setItem("groq_ocr_vibrate", vibrateEnabled ? "true" : "false");
+
+      const newTorchState = cfgTorch.checked;
+      if (newTorchState !== torchEnabled) {
+        await toggleTorch(newTorchState);
+      }
+
+      if (oldRes !== selectedResolution) {
+        await initCamera(false);
+      }
+
+      settingsModal.style.display = "none";
+      showToast("Pengaturan berhasil disimpan");
+      speak("Pengaturan berhasil disimpan");
+    });
+
+    document.getElementById("btn-close-settings").addEventListener("click", () => {
+      triggerHaptic(30);
+      settingsModal.style.display = "none";
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+      loadMainVoiceEngine();
+      updateModeButtonsUI();
+
+      const alreadyGranted = localStorage.getItem("camera_permission_granted") === "true";
+      if (alreadyGranted) {
+        initCamera(false);
+      } else {
+        permissionModal.style.display = "flex";
+      }
+    });
+  </script>
+</body>
+</html>
