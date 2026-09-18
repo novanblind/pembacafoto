@@ -274,6 +274,22 @@
       font-size: 0.9rem;
       cursor: pointer;
     }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+      padding: 11px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s ease;
+    }
+
+    .btn-danger:active {
+      background: rgba(239, 68, 68, 0.3);
+    }
   </style>
 </head>
 <body>
@@ -288,7 +304,7 @@
       <div class="btn-capture-inner"></div>
     </div>
 
-    <!-- Tiga Tombol Mode Sejajar (Default: Deskripsi Foto) -->
+    <!-- Tiga Tombol Mode Sejajar (Bawaan Default: Deskripsi Foto) -->
     <div class="mode-bar">
       <button class="btn-mode" id="btn-mode-text">Mode Teks</button>
       <button class="btn-mode" id="btn-mode-money">Mode Uang</button>
@@ -319,6 +335,15 @@
   <div class="modal-overlay" id="settings-modal">
     <div class="modal-card">
       <h2>Pengaturan Kamera dan OCR</h2>
+
+      <!-- Pilihan Kamera Depan / Belakang -->
+      <div class="form-group">
+        <label for="cfg-camera-facing">Kamera yang Digunakan</label>
+        <select id="cfg-camera-facing">
+          <option value="environment">Kamera Belakang (Bawaan)</option>
+          <option value="user">Kamera Depan</option>
+        </select>
+      </div>
 
       <div class="form-group">
         <label for="cfg-resolution">Resolusi Gambar atau Kamera</label>
@@ -389,6 +414,9 @@
         <input type="checkbox" id="cfg-torch" />
       </div>
 
+      <!-- Tombol Reset Pengaturan Keseluruhan -->
+      <button class="btn-danger" id="btn-reset-all">Reset Pengaturan ke Bawaan</button>
+
       <div class="modal-actions">
         <button class="btn-primary" id="btn-save-settings">Simpan Perubahan</button>
         <button class="btn-secondary" id="btn-close-settings">Tutup</button>
@@ -428,9 +456,10 @@ Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bull
 
     let vibrateEnabled = localStorage.getItem("groq_ocr_vibrate") !== "false";
     let selectedResolution = localStorage.getItem("groq_ocr_res") || "720p";
+    let selectedCameraFacing = localStorage.getItem("groq_camera_facing") || "environment";
     let speechRate = parseFloat(localStorage.getItem("groq_ocr_speech_rate")) || 1.0;
 
-    // Nilai bawaan diatur ke "desc" (Deskripsi Foto)
+    // Pastikan nilai bawaan selalu ke "desc" (Deskripsi Foto)
     let currentMode = localStorage.getItem("groq_app_mode") || "desc"; 
     let torchEnabled = false;
 
@@ -448,6 +477,7 @@ Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bull
     const btnModeMoney = document.getElementById("btn-mode-money");
     const btnModeDesc = document.getElementById("btn-mode-desc");
 
+    const cfgCameraFacing = document.getElementById("cfg-camera-facing");
     const cfgResolution = document.getElementById("cfg-resolution");
     const cfgSpeechRate = document.getElementById("cfg-speech-rate");
     const cfgApiKey = document.getElementById("cfg-api-key");
@@ -568,7 +598,7 @@ Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bull
         const constraints = {
           audio: false,
           video: {
-            facingMode: { ideal: "environment" },
+            facingMode: { ideal: selectedCameraFacing },
             width: { ideal: resPreset.width },
             height: { ideal: resPreset.height }
           }
@@ -707,6 +737,7 @@ Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bull
 
     function openSettings() {
       triggerHaptic(40);
+      cfgCameraFacing.value = selectedCameraFacing;
       cfgResolution.value = selectedResolution;
       cfgSpeechRate.value = speechRate.toString();
       cfgApiKey.value = userCustomApiKey;
@@ -721,6 +752,52 @@ Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bull
       settingsModal.style.display = "flex";
     }
 
+    // Reset seluruh pengaturan aplikasi ke bawaan
+    async function resetAllSettings() {
+      triggerHaptic(60);
+
+      selectedCameraFacing = "environment";
+      selectedResolution = "720p";
+      speechRate = 1.0;
+      userCustomApiKey = "";
+      textInstruction = DEFAULT_TEXT_INSTRUCTION;
+      moneyInstruction = DEFAULT_MONEY_INSTRUCTION;
+      photoDescInstruction = DEFAULT_PHOTO_DESC_INSTRUCTION;
+      vibrateEnabled = true;
+      torchEnabled = false;
+      currentMode = "desc";
+
+      // Hapus data kustom dari localStorage
+      localStorage.removeItem("groq_user_custom_key");
+      localStorage.setItem("groq_camera_facing", "environment");
+      localStorage.setItem("groq_ocr_res", "720p");
+      localStorage.setItem("groq_ocr_speech_rate", "1.0");
+      localStorage.setItem("groq_instruction_text", DEFAULT_TEXT_INSTRUCTION);
+      localStorage.setItem("groq_instruction_money", DEFAULT_MONEY_INSTRUCTION);
+      localStorage.setItem("groq_instruction_desc", DEFAULT_PHOTO_DESC_INSTRUCTION);
+      localStorage.setItem("groq_ocr_vibrate", "true");
+      localStorage.setItem("groq_app_mode", "desc");
+
+      // Perbarui tampilan form di dalam modal
+      cfgCameraFacing.value = "environment";
+      cfgResolution.value = "720p";
+      cfgSpeechRate.value = "1.0";
+      cfgApiKey.value = "";
+      cfgInstructionText.value = DEFAULT_TEXT_INSTRUCTION;
+      cfgInstructionMoney.value = DEFAULT_MONEY_INSTRUCTION;
+      cfgInstructionDesc.value = DEFAULT_PHOTO_DESC_INSTRUCTION;
+      cfgVibrate.checked = true;
+      cfgTorch.checked = false;
+
+      // Terapkan ke mode dan hardware kamera
+      updateModeButtonsUI();
+      await toggleTorch(false);
+      await initCamera(false);
+
+      showToast("Pengaturan dikembalikan ke bawaan");
+      speak("Pengaturan dikembalikan ke bawaan");
+    }
+
     // Klik Pemilihan Mode Langsung
     btnModeText.addEventListener("click", () => setAppMode("text", "Mode Teks diaktifkan"));
     btnModeMoney.addEventListener("click", () => setAppMode("money", "Mode Uang diaktifkan"));
@@ -728,6 +805,7 @@ Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bull
 
     document.getElementById("btn-take-photo").addEventListener("click", captureAndProcess);
     document.getElementById("btn-open-settings").addEventListener("click", openSettings);
+    document.getElementById("btn-reset-all").addEventListener("click", resetAllSettings);
 
     document.getElementById("btn-copy-text").addEventListener("click", async () => {
       triggerHaptic(40);
@@ -763,6 +841,9 @@ Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bull
     document.getElementById("btn-save-settings").addEventListener("click", async () => {
       triggerHaptic(40);
       const oldRes = selectedResolution;
+      const oldFacing = selectedCameraFacing;
+
+      selectedCameraFacing = cfgCameraFacing.value;
       selectedResolution = cfgResolution.value;
       speechRate = parseFloat(cfgSpeechRate.value) || 1.0;
 
@@ -782,6 +863,7 @@ Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bull
 
       vibrateEnabled = cfgVibrate.checked;
 
+      localStorage.setItem("groq_camera_facing", selectedCameraFacing);
       localStorage.setItem("groq_ocr_res", selectedResolution);
       localStorage.setItem("groq_ocr_speech_rate", speechRate.toString());
       localStorage.setItem("groq_instruction_text", textInstruction);
@@ -794,7 +876,8 @@ Jangan gunakan pembuka umum seperti 'Gambar ini menunjukkan...', penomoran, bull
         await toggleTorch(newTorchState);
       }
 
-      if (oldRes !== selectedResolution) {
+      // Re-init kamera jika ada pergantian resolusi atau pergantian kamera depan/belakang
+      if (oldRes !== selectedResolution || oldFacing !== selectedCameraFacing) {
         await initCamera(false);
       }
 
